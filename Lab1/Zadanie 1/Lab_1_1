@@ -1,0 +1,138 @@
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+
+penguins = sns.load_dataset("penguins")
+penguins.dropna(subset=["species", "body_mass_g", "bill_length_mm", "bill_depth_mm", "flipper_length_mm", "island", "sex"], inplace=True)
+avg_mass = penguins.groupby("species")["body_mass_g"].mean().reset_index()
+
+# Wykres słupkowy
+plt.figure(figsize=(8, 5))
+sns.barplot(data=avg_mass, x="species", y="body_mass_g", color="skyblue")
+plt.title("Średnia masa ciała (g) dla każdego gatunku pingwinów")
+plt.xlabel("Gatunek")
+plt.ylabel("Średnia masa ciała (g)")
+plt.tight_layout()
+plt.savefig("srednia_masa_ciala.png", dpi=300)
+plt.show()
+
+# Wykres rozrzutu 2D
+plt.figure(figsize=(8, 6))
+sns.scatterplot(data=penguins, x="bill_length_mm", y="bill_depth_mm", hue="species", palette="deep")
+plt.title("Zależność między długością a szerokością dzioba")
+plt.xlabel("Długość dzioba (mm)")
+plt.ylabel("Szerokość dzioba (mm)")
+plt.legend(title="Gatunek")
+plt.tight_layout()
+plt.savefig("wykres_rozrzutu_dziob.png", dpi=300)
+plt.show()
+
+# Wykres rozrzutu 3D
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+
+species_unique = penguins["species"].unique()
+colors = dict(zip(species_unique, ["r", "g", "b"])) 
+
+for specie in species_unique:
+    subset = penguins[penguins["species"] == specie]
+    ax.scatter(subset["bill_length_mm"], subset["bill_depth_mm"], subset["body_mass_g"],
+               label=specie, color=colors[specie], s=50, alpha=0.7)
+
+ax.set_xlabel("Długość dzioba (mm)")
+ax.set_ylabel("Szerokość dzioba (mm)")
+ax.set_zlabel("Masa ciała (g)")
+ax.set_title("Wykres rozrzutu 3D")
+ax.legend()
+plt.tight_layout()
+plt.savefig("wykres_3d_rozrzutu.png", dpi=300)
+plt.show()
+
+# Histogram dla długości płetw
+plt.figure(figsize=(8, 5))
+sns.histplot(penguins["flipper_length_mm"], bins=20, kde=False, color="purple")
+plt.title("Histogram długości płetw (mm)")
+plt.xlabel("Długość płetw (mm)")
+plt.ylabel("Liczba obserwacji")
+plt.tight_layout()
+plt.savefig("histogram_pletw.png", dpi=300)
+plt.show()
+
+# Mapa cieplna liczby obserwacji wyspy vs gatunku
+pivot_table = penguins.pivot_table(index="island", columns="species", aggfunc='size', fill_value=0)
+
+plt.figure(figsize=(8, 6))
+sns.heatmap(pivot_table, annot=True, fmt="d", cmap="YlGnBu")
+plt.title("Mapa cieplna liczby obserwacji: wyspa vs gatunek")
+plt.xlabel("Gatunek")
+plt.ylabel("Wyspa")
+plt.tight_layout()
+plt.savefig("mapa_cieplna.png", dpi=300)
+plt.show()
+
+# Wykres pudełkowy masy ciała podzielony według płci i gatunku
+plt.figure(figsize=(10, 6))
+sns.boxplot(data=penguins, x="sex", y="body_mass_g", hue="species", palette="Set2")
+plt.title("Wykres pudełkowy masy ciała wg płci i gatunku")
+plt.xlabel("Płeć")
+plt.ylabel("Masa ciała (g)")
+plt.legend(title="Gatunek")
+plt.tight_layout()
+plt.savefig("wykres_pudelko_masa_ciala.png", dpi=300)
+plt.show()
+
+# --- Wykres powierzchniowy (Surface Plot) ---
+
+# Tworzymy siatkę na podstawie zakresu długości i szerokości dzioba
+x = np.linspace(penguins["bill_length_mm"].min(), penguins["bill_length_mm"].max(), 50)
+y = np.linspace(penguins["bill_depth_mm"].min(), penguins["bill_depth_mm"].max(), 50)
+X, Y = np.meshgrid(x, y)
+
+# Stworzenie DataFrame siatki, aby łatwo robić pivot_table
+grid_points = pd.DataFrame({
+    "bill_length_mm": X.ravel(),
+    "bill_depth_mm": Y.ravel()
+})
+
+# Dodajemy kolumny binów do oryginalnych danych
+penguins["bill_length_bin"] = pd.cut(penguins["bill_length_mm"], bins=x, include_lowest=True)
+penguins["bill_depth_bin"] = pd.cut(penguins["bill_depth_mm"], bins=y, include_lowest=True)
+
+# Pivot table z uśrednioną masą ciała
+pivot_surface = penguins.pivot_table(
+    values="body_mass_g",
+    index="bill_depth_bin",
+    columns="bill_length_bin",
+    aggfunc="mean"
+)
+
+# Funkcja zamieniająca IntervalIndex na punkty środkowe binów
+def interval_to_midpoints(interval_index):
+    return np.array([interval.mid for interval in interval_index])
+
+# Zamiana indeksów pivot_table na środkowe wartości binów
+X_surf = interval_to_midpoints(pivot_surface.columns)  # kolumny
+Y_surf = interval_to_midpoints(pivot_surface.index)    # indeksy
+
+# Tworzymy siatkę meshgrid z punktów środkowych
+X_surf, Y_surf = np.meshgrid(X_surf, Y_surf)
+
+# Z wartości pivot_table bierzemy macierz Z
+Z = pivot_surface.values
+
+# Rysujemy wykres powierzchniowy
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+surf = ax.plot_surface(X_surf, Y_surf, Z, cmap=cm.viridis, edgecolor='none', alpha=0.9)
+
+ax.set_xlabel("Długość dzioba (mm)")
+ax.set_ylabel("Szerokość dzioba (mm)")
+ax.set_zlabel("Średnia masa ciała (g)")
+ax.set_title("Wykres powierzchniowy: długość i szerokość dzioba vs średnia masa ciała")
+fig.colorbar(surf, shrink=0.5, aspect=5)
+plt.tight_layout()
+plt.savefig("wykres_powierzchniowy.png", dpi=300)
+plt.show()

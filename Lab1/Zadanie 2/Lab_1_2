@@ -1,0 +1,100 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+url = "https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.csv"
+df = pd.read_csv(url)
+
+print("=== A) Identyfikacja i eliminacja duplikatów ===")
+print(f"Liczba wierszy przed usunięciem duplikatów: {len(df)}")
+
+duplicates = df.duplicated()
+print(f"Liczba duplikatów: {duplicates.sum()}")
+
+df_no_dup = df.drop_duplicates()
+print(f"Liczba wierszy po usunięciu duplikatów: {len(df_no_dup)}")
+
+df_with_dups = pd.concat([df_no_dup, df_no_dup.head(10)], ignore_index=True)
+print(f"Liczba wierszy po dodaniu 10 duplikatów: {len(df_with_dups)}")
+
+df_cleaned = df_with_dups.drop_duplicates()
+print(f"Liczba wierszy po ponownym usunięciu duplikatów: {len(df_cleaned)}")
+
+print("\n=== B) Usunięcie wierszy z brakującymi wartościami ===")
+print(f"Liczba wierszy przed usunięciem braków: {len(df_cleaned)}")
+df_no_na = df_cleaned.dropna()
+print(f"Liczba wierszy po usunięciu braków: {len(df_no_na)}")
+
+print("\n=== C) Imputacja brakujących wartości w 'total_bedrooms' ===")
+missing_before = df_cleaned['total_bedrooms'].isna().sum()
+print(f"Liczba brakujących przed imputacją: {missing_before}")
+
+mean_bedrooms = df_cleaned['total_bedrooms'].mean()
+df_imputed = df_cleaned.copy()
+df_imputed['total_bedrooms'] = df_imputed['total_bedrooms'].fillna(mean_bedrooms)
+
+missing_after = df_imputed['total_bedrooms'].isna().sum()
+print(f"Liczba brakujących po imputacji: {missing_after}")
+
+print("\n=== D) Standaryzacja 'median_income' do zakresu 0-1 ===")
+print("Przykładowe wartości przed standaryzacją:")
+print(df_imputed['median_income'].head())
+
+min_income = df_imputed['median_income'].min()
+max_income = df_imputed['median_income'].max()
+df_imputed['median_income_scaled'] = (df_imputed['median_income'] - min_income) / (max_income - min_income)
+
+print("Przykładowe wartości po standaryzacji:")
+print(df_imputed['median_income_scaled'].head())
+
+print("\n=== E) Mapowanie wartości kategorialnych 'ocean_proximity' ===")
+print("Unikalne wartości 'ocean_proximity':")
+print(df_imputed['ocean_proximity'].unique())
+
+mapping = {
+    '<1H OCEAN': 0,
+    'INLAND': 1,
+    'ISLAND': 2,
+    'NEAR BAY': 3,
+    'NEAR OCEAN': 4
+}
+df_imputed['ocean_proximity_mapped'] = df_imputed['ocean_proximity'].map(mapping)
+print(df_imputed[['ocean_proximity', 'ocean_proximity_mapped']].head())
+
+print("\n=== F) Logarytmiczna transformacja 'median_house_value' ===")
+df_imputed['median_house_value_log'] = np.log1p(df_imputed['median_house_value'])
+print(df_imputed[['median_house_value', 'median_house_value_log']].head())
+
+print("\n=== G) Mapowanie przedziałów 'housing_median_age' do kategorii 'age_category' ===")
+bins = [0, 10, 20, 30, 40, 50, np.inf]
+labels = ['0-10', '11-20', '21-30', '31-40', '41-50', '50+']
+df_imputed['age_category'] = pd.cut(df_imputed['housing_median_age'], bins=bins, labels=labels, right=True)
+
+print(df_imputed[['housing_median_age', 'age_category']].head())
+
+print("\n=== H) Analiza nowych kolumn ===")
+
+unique_age_cat = df_imputed['age_category'].nunique()
+print(f"Liczba unikalnych kategorii wieku: {unique_age_cat}")
+
+print("\nStatystyki kolumny 'median_house_value_log':")
+print(df_imputed['median_house_value_log'].describe())
+
+plt.figure(figsize=(14, 6))
+
+plt.subplot(1, 2, 1)
+age_counts = df_imputed['age_category'].value_counts().sort_index()
+sns.barplot(x=age_counts.index, y=age_counts.values, color='lightblue') 
+plt.title("Rozkład liczby domów według kategorii wieku")
+plt.xlabel("Kategoria wieku")
+plt.ylabel("Liczba domów")
+
+plt.subplot(1, 2, 2)
+sns.histplot(df_imputed['median_house_value_log'], bins=30, kde=True, color='skyblue')
+plt.title("Histogram logarytmicznej wartości mediany ceny domu")
+plt.xlabel("log(median_house_value + 1)")
+
+plt.tight_layout()
+plt.savefig("housing_analysis.png", dpi=300)
+plt.show()
